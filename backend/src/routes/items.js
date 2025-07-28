@@ -14,19 +14,40 @@ async function readData() {
 router.get('/', async (req, res, next) => {
   try {
     const data = await readData();
-    const { limit, q } = req.query;
+    const { page = 1, limit = 10, q } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
     let results = data;
 
+    // Search functionality
     if (q) {
-      // Simple substring search (sub‑optimal)
-      results = results.filter(item => item.name.toLowerCase().includes(q.toLowerCase()));
+      results = results.filter(item => 
+        item.name.toLowerCase().includes(q.toLowerCase()) ||
+        item.category?.toLowerCase().includes(q.toLowerCase())
+      );
     }
 
-    if (limit) {
-      results = results.slice(0, parseInt(limit));
-    }
+    // Calculate pagination
+    const totalItems = results.length;
+    const totalPages = Math.ceil(totalItems / limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    
+    // Paginate results
+    const paginatedItems = results.slice(startIndex, endIndex);
 
-    res.json(results);
+    res.json({
+      items: paginatedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1
+      }
+    });
   } catch (err) {
     next(err);
   }

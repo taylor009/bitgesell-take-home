@@ -38,14 +38,18 @@ describe('Items Routes', () => {
   });
 
   describe('GET /api/items', () => {
-    it('should return all items', async () => {
+    it('should return paginated items', async () => {
       fs.readFile.mockResolvedValue(JSON.stringify(mockItems));
 
       const response = await request(app)
         .get('/api/items')
         .expect(200);
 
-      expect(response.body).toEqual(mockItems);
+      expect(response.body.items).toBeDefined();
+      expect(response.body.pagination).toBeDefined();
+      expect(response.body.items).toHaveLength(3);
+      expect(response.body.pagination.page).toBe(1);
+      expect(response.body.pagination.totalItems).toBe(3);
       expect(fs.readFile).toHaveBeenCalledTimes(1);
     });
 
@@ -56,9 +60,10 @@ describe('Items Routes', () => {
         .get('/api/items?q=test')
         .expect(200);
 
-      expect(response.body).toHaveLength(2);
-      expect(response.body[0].name).toBe('Test Item 1');
-      expect(response.body[1].name).toBe('Test Item 2');
+      expect(response.body.items).toHaveLength(2);
+      expect(response.body.items[0].name).toBe('Test Item 1');
+      expect(response.body.items[1].name).toBe('Test Item 2');
+      expect(response.body.pagination.totalItems).toBe(2);
     });
 
     it('should limit results when limit is provided', async () => {
@@ -68,9 +73,10 @@ describe('Items Routes', () => {
         .get('/api/items?limit=2')
         .expect(200);
 
-      expect(response.body).toHaveLength(2);
-      expect(response.body[0].id).toBe(1);
-      expect(response.body[1].id).toBe(2);
+      expect(response.body.items).toHaveLength(2);
+      expect(response.body.items[0].id).toBe(1);
+      expect(response.body.items[1].id).toBe(2);
+      expect(response.body.pagination.limit).toBe(2);
     });
 
     it('should combine search and limit', async () => {
@@ -80,8 +86,29 @@ describe('Items Routes', () => {
         .get('/api/items?q=item&limit=1')
         .expect(200);
 
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].name).toBe('Test Item 1');
+      expect(response.body.items).toHaveLength(1);
+      expect(response.body.items[0].name).toBe('Test Item 1');
+      expect(response.body.pagination.totalItems).toBe(3); // 3 items match 'item'
+    });
+
+    it('should handle pagination correctly', async () => {
+      const manyItems = Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        name: `Item ${i + 1}`,
+        category: 'Test',
+        price: 100 + i
+      }));
+      fs.readFile.mockResolvedValue(JSON.stringify(manyItems));
+
+      const response = await request(app)
+        .get('/api/items?page=2&limit=10')
+        .expect(200);
+
+      expect(response.body.items).toHaveLength(10);
+      expect(response.body.items[0].id).toBe(11);
+      expect(response.body.pagination.page).toBe(2);
+      expect(response.body.pagination.hasNextPage).toBe(true);
+      expect(response.body.pagination.hasPreviousPage).toBe(true);
     });
 
     it('should handle file read errors', async () => {
